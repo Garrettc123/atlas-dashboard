@@ -8,33 +8,23 @@ on:
 
 jobs:
 
-  # ─────────────────────────────────────
-  # Stage 1: Type check + Lint
-  # ─────────────────────────────────────
   quality:
     name: Type Check & Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: TypeScript type check
         run: npm run type-check
-
       - name: ESLint
         run: npm run lint
 
-  # ─────────────────────────────────────
-  # Stage 2: Build validation
-  # ─────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -50,10 +40,8 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_ATLAS_VERSION: ${{ github.sha }}
+          NEXT_PUBLIC_BUILD_TIME: ${{ github.run_id }}
 
-  # ─────────────────────────────────────
-  # Stage 3: Deploy to Vercel (main only)
-  # ─────────────────────────────────────
   deploy:
     name: Deploy to Vercel
     runs-on: ubuntu-latest
@@ -67,17 +55,26 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
-          working-directory: ./
-
-      - name: Deployment complete
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build Vercel artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy to Vercel production
+        id: deploy
         run: |
-          echo "✅ ATLAS Dashboard deployed to Vercel"
-          echo "📊 Live at: https://atlas-dashboard.vercel.app"
-          echo "📦 Commit: ${{ github.sha }}"
+          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "✅ Deployed: $URL"
+      - name: Comment deploy URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 **ATLAS Dashboard deployed!**\n\n' + '${{ steps.deploy.outputs.url }}'
+            })
