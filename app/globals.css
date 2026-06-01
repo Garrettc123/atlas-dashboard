@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --atlas-primary: #0ea5e9;
+  --atlas-success: #22c55e;
+  --atlas-warning: #f59e0b;
+  --atlas-danger: #ef4444;
+  --atlas-dark: #0f172a;
+}
+
+body {
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: 'Inter', sans-serif;
+}
