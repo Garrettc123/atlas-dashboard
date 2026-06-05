@@ -1,0 +1,57 @@
+name: ⚡ ATLAS Dashboard — Vercel Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: 🚀 Deploy to Vercel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build check
+        run: npm run build
+        env:
+          NEXT_PUBLIC_APP_NAME: ATLAS
+          NEXT_PUBLIC_VERSION: '1.0.0'
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel (Production)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          vercel --token "$VERCEL_TOKEN" --prod --yes \
+            --env NEXT_PUBLIC_APP_NAME=ATLAS \
+            --env NEXT_PUBLIC_VERSION=1.0.0
+          echo "✅ ATLAS deployed to Vercel production"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy preview (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          PREVIEW_URL=$(vercel --token "$VERCEL_TOKEN" --yes \
+            --env NEXT_PUBLIC_APP_NAME=ATLAS \
+            --env NEXT_PUBLIC_VERSION=1.0.0 2>&1 | tail -1)
+          echo "✅ Preview URL: $PREVIEW_URL"
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
