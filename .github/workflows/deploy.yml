@@ -5,76 +5,74 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
-
-  quality:
-    name: Type Check & Lint
+  test:
+    name: "🧪 Test & Lint"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: TypeScript type check
-        run: npm run type-check
-      - name: ESLint
-        run: npm run lint
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: quality
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
-      - name: Build Next.js app
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run type check
+        run: npm run type-check
+
+  build:
+    name: "🔨 Build"
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
         run: npm run build
         env:
-          NEXT_PUBLIC_ATLAS_VERSION: ${{ github.sha }}
-          NEXT_PUBLIC_BUILD_TIME: ${{ github.run_id }}
+          NEXT_PUBLIC_APP_NAME: ATLAS
+          NEXT_PUBLIC_VERSION: '1.0.0'
 
   deploy:
-    name: Deploy to Vercel
+    name: "🚀 Deploy to Vercel"
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
-      - name: Install Vercel CLI
-        run: npm install -g vercel
-      - name: Pull Vercel environment
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Build Vercel artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Deploy to Vercel production
-        id: deploy
-        run: |
-          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
-          echo "url=$URL" >> $GITHUB_OUTPUT
-          echo "✅ Deployed: $URL"
-      - name: Comment deploy URL on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '🚀 **ATLAS Dashboard deployed!**\n\n' + '${{ steps.deploy.outputs.url }}'
-            })
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy to Vercel
+        run: npx vercel --prod --token "$VERCEL_TOKEN" --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          NEXT_PUBLIC_APP_NAME: ATLAS
+          NEXT_PUBLIC_VERSION: '1.0.0'
+
+      - name: Deployment Success
+        run: echo "✅ ATLAS Dashboard deployed to Vercel at $(date -u)"
